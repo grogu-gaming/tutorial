@@ -1,4 +1,7 @@
 # Tutorial
+## Project Selection
+<walkthrough-project-setup></walkthrough-project-setup>
+
 ## Setting up GKE cluster and Agones
 You will use [terraform scripts](https://gitlab.endpoints.cn-gaming-cicd.cloud.goog/gaming-ci-cd-automation/core/-/blob/main/main.tf) to create a VPC and GKE cluster, use Helm to install Agones.
 
@@ -13,8 +16,11 @@ You will use a [cloud build config file](https://gitlab.endpoints.cn-gaming-cicd
 Copy the script to the cloud shell, to run the script, you need to provide the following parameters: -->
 
 ## Create a webhook trigger
-Go to the [cloud build], create a webhook trigger:
-<!-- <walkthrough-menu-navigation sectionId="STORAGE_SECTION"></walkthrough-menu-navigation> -->
+
+
+Go to the Cloud Build, create a webhook trigger:
+<walkthrough-menu-navigation sectionId="CLOUD_BUILD_SECTION">Cloud Build</walkthrough-menu-navigation>
+
 ### 1. Click **Create trigger**.
 ### 2. Enter the following trigger settings:
 1. **Name**: A name for your trigger.
@@ -33,7 +39,9 @@ You will use a [cloud build config file](https://gitlab.endpoints.cn-gaming-cicd
 
 
 ## Trigger the build
-Select the trigger you created, copy the webhook URL and paste it in the following command. Specify the cluster name **<CLUSTER_NAME>** and region **<REGION>**.
+Open the cloud shell <walkthrough-cloud-shell-icon></walkthrough-cloud-shell-icon>.
+
+Select the trigger you created, copy the webhook URL and paste it in the following command. Specify the **<CLUSTER_NAME>** and **<REGION>**.
 ```bash
 curl -X POST -H "application/json" "<WEBHOOK_URL>" -d '{"cluster_name":"<CLUSTER_NAME>", "region":"<REGION>"}'
 ```
@@ -45,11 +53,47 @@ You will use a [fleet config file](https://gitlab.endpoints.cn-gaming-cicd.cloud
 1. Create a fleet with 2 replica simple game servers. we’ll take the example container that Agones provides for the simple game server.
 2. Create a ConfigMap to store the yaml for a static configuration for Quilkin that will accept connections on port 26002 and route then to the simple game server on port 7654.
 3. Run Quilkin alongside each dedicated game server as a sidecar.
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quilkin-config-simple
+data:
+  quilkin.yaml: |
+    version: v1alpha1
+    proxy:
+      id: proxy-demo-simple
+      port: 26002
+    static:
+      filters:
+        - name: quilkin.extensions.filters.debug.v1alpha1.Debug # Debug filter: every packet will be logged
+          config:
+            id: debug-1
+    
+        - name: quilkin.extensions.filters.capture_bytes.v1alpha1.CaptureBytes # Capture and remove the authentication token
+          config:
+              strategy: PREFIX
+              size: 3
+              remove: true
+              metadataKey: quilkin.dev
+        - name: quilkin.extensions.filters.token_router.v1alpha1.TokenRouter
+          config:
+              metadataKey: quilkin.dev
+      endpoints: 
+          address: 127.0.0.1:7654
+          metadata:
+              quilkin.dev:
+                tokens:
+                    - YWJj # abc
+                    - MXg3aWp5Ng== # Authentication is provided by these ids, and matched against 
+                    - OGdqM3YyaQ== # the value stored in Filter dynamic metadata
+``` 
 
 In this example, the base64 encoded token is “YWJj”, if the token is found in the first 3 bytes within the packet, it will be removed and sended the rest of the message to the “127.0.0.1:7654”, which is listened by the simple game server.
 
 ## Create a webhook trigger
-Go to the [cloud build][???], create a webhook trigger:
+Go to the Cloud Build, create a webhook trigger:
+<walkthrough-menu-navigation sectionId="CLOUD_BUILD_SECTION">Cloud Build</walkthrough-menu-navigation>
 ### 1. Click **Create trigger**.
 ### 2. Enter the following trigger settings:
 1. **Name**: A name for your trigger.
@@ -67,6 +111,7 @@ You will use the [cloud build config file](https://gitlab.endpoints.cn-gaming-ci
 
 
 ## Trigger the build
+Open the cloud shell <walkthrough-cloud-shell-icon></walkthrough-cloud-shell-icon>.
 Select the trigger you created, copy the webhook URL and paste it in the following command. Specify the cluster name **<CLUSTER_NAME>**, region **<REGION>** and fleet config file path **<CONFIG_FILE>**.
 ```bash
 curl -X POST -H "application/json" "<WEBHOOK_URL>" -d '{"cluster_name":"<CLUSTER_NAME>", "region":"<REGION>", "config_file":"<CONFIG_FILE>"}'
@@ -75,8 +120,9 @@ The “curl” command will trigger cloud build, it will apply the fleet configu
 
 ## Test the fleet config
 Test the fleet creation:
-1. In Cloud Build history, it was successfully built.
-2. Open the cloud shell, enter the following command. Verify that gameservers were created, and the state is ready.
+1. Go to the Cloud Build, in Cloud Build history, check that it was successfully built.
+<walkthrough-menu-navigation sectionId="CLOUD_BUILD_SECTION">Cloud Build</walkthrough-menu-navigation>
+2. Open the cloud shell <walkthrough-cloud-shell-icon></walkthrough-cloud-shell-icon>, enter the following command. Verify that gameservers were created, and the state is ready.
 ```
 Kubectl get gs
 ```
